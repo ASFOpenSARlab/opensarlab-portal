@@ -1,0 +1,6 @@
+*
+!app/
+!app/**
+!.gitignore
+!.dockerignore
+!dockerfile

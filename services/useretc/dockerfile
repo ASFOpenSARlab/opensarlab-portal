@@ -1,0 +1,24 @@
+FROM tiangolo/uvicorn-gunicorn-fastapi:python3.11-slim
+
+RUN apt update && \
+    apt install -y sqlite3 
+
+RUN python3 -m pip install --upgrade \
+    sqlalchemy \
+    fastapi \
+    jinja2 \
+    python-multipart \
+    requests \
+    opensarlab-backend==1.0.4 \
+    pyyaml \
+    ics \
+    httpx \
+    html2text \
+    markdown \
+    pandas
+
+COPY ./app /app
+
+EXPOSE 8887
+
+CMD ["uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8887"]

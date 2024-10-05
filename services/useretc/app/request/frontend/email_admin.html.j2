@@ -1,0 +1,29 @@
+<div>
+    <h3>An user has requested access to an OpenScienceLab lab</h3>
+
+    <p><b>Lab</b>: {{ user_data.lab_short_name }}</p>
+
+    <p><b>User Name</b>: {{ user_data.username }}</p>
+
+    <p><b>User Email</b>: {{ user_data.user_email_address }}</p>
+
+    <p><b>User Profile</b>:
+
+    <table id="profile-table">
+        <tbody> 
+    {%- for key, value in user_data.profile_info.items() %}
+            <tr style="padding: 1em;">
+                <th style="font-weight: normal; padding: 5px; text-align: left;">{{ key }}</th>
+                <th>{{ value }}</th>
+            </tr>
+    {% endfor %}
+        </tbody>
+    </table>
+
+    <p><b>IP Country Code</b>: {{ user_data.ip_country_code}}</p>
+
+    <p><b>IP Country Status</b>: {{ user_data.ip_country_status }}</p>
+
+    <p><b>Reason for Request</b>: {{ user_data.user_reason }}</p>
+
+</div>

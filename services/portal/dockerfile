@@ -1,0 +1,33 @@
+FROM jupyterhub/jupyterhub:3.1.0
+
+RUN apt update && \
+    apt install -y sqlite3 vim patch
+
+RUN python3.10 -m pip install \
+        #jupyterhub-nativeauthenticator \
+        pyyaml \
+        opensarlab-backend==1.0.4 \
+        pandas \
+        httpx \
+        escapism
+
+COPY ./etc /etc
+COPY ./usr /usr
+RUN chmod 0444 /usr/local/etc/labs.yaml
+
+RUN cd /usr/local/etc/nativeauthenticator && \
+    python3.10 -m pip install -e . && \
+    cp -r nativeauthenticator /usr/local/lib/python3.10/dist-packages/
+
+# Native Authenticator template overrides do not work as expected. So be more explicit.
+RUN mv /usr/local/lib/python3.10/dist-packages/nativeauthenticator/templates/native-login.html \
+        /usr/local/lib/python3.10/dist-packages/nativeauthenticator/templates/native-login_original.html && \
+    mv /usr/local/share/jupyterhub/templates/login.html \
+        /usr/local/lib/python3.10/dist-packages/nativeauthenticator/templates/native-login.html
+
+# Create extra secrets folder owned by jupyter
+RUN mkdir -p -m 775 /usr/local/secrets && chown 1000:root /usr/local/secrets
+
+# Apply patch to base.py
+RUN patch -u /usr/local/lib/python3.10/dist-packages/jupyterhub/handlers/base.py \
+    -i /usr/local/lib/python3.10/dist-packages/jupyterhub/handlers/base.py.patch

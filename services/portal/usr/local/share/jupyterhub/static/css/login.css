@@ -1,0 +1,20 @@
+#login-main {
+    display: block;
+}
+
+.outside-margins {
+    margin: 100px;
+}
+
+.top-margins {
+    margin-top: 100px;
+}
+
+.login-padding {
+    padding-left: 100px;
+    padding-top: 50px;
+}
+
+.bump-margin {
+    margin-top: 10px;
+}

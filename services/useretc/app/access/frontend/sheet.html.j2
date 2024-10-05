@@ -1,0 +1,210 @@
+
+<html>
+<head>
+    <link rel="stylesheet" 
+        href="https://cdn.jsdelivr.net/npm/purecss@2.2.0/build/pure-min.css" 
+        integrity="sha384-7UE2/aLxcikvluV1XGghN2k6i+LoAwMjrZb4oVT9gGPPcLd2sjqAtgIinHb11RJz" 
+        crossorigin="anonymous">
+    <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
+    <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css">
+
+    <style>
+        .button-secondary {
+            background-color: lightskyblue;
+        }
+
+        .button-success {
+            background-color: lightgreen;
+        }
+
+        .margin-left-30 {
+            margin-left: 30px;
+        }
+
+        .margin-left-10 {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body class="margin-left-30">
+    <section>
+        <h1>OpenScienceLab User Access</h1>
+        <p>
+            <button class="pure-button button-secondary" 
+                onclick="location.href='/portal/hub/home'" 
+                type="button"
+            >
+                Go to Portal Home
+            </button>
+        </p>
+    </section>
+
+    <section>
+        <hr/>
+        <br/>
+
+        <div>
+            <input class="pure-text" 
+                id="add-sheet-name" 
+                type="text" 
+                placeholder="Name of new sheet"
+            >
+            <input class="pure-button button-success margin-left-10" 
+                id="add-sheet-btn" 
+                type="button" 
+                value="Add new tab sheet" 
+                onclick="add_sheet()"
+            >
+        </div>
+        <br/>
+
+        <div id="spreadsheet"></div>
+
+        <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
+        <script src="https://jsuites.net/v4/jsuites.js"></script>
+        <script>
+
+            var add_sheet = function() {
+                const sheet_name = document.getElementById('add-sheet-name').value
+                const sheets = [
+                    {
+                        sheetName: sheet_name,
+                        minDimensions:[4,10],
+                        url: '/user/access/lab/'+sheet_name,
+                        persistance: '/user/access/lab/'+sheet_name,
+                        columns: [
+                            { title: 'Username', width: 100, name: 'username' },
+                            { title: 'Profiles', width: 200, name: 'lab_profiles' },
+                            { title: 'Active Till Dates', width: 200, name: 'active_till_dates' },
+                            { title: 'Time Quotas', width: 100, name: 'time_quota' },
+                            { title: 'Comments', width: 500, name: 'comments' },
+                        ],
+                        search: true,
+                        pagination: 25,
+                        paginationOptions: [25,50,100,200,500,10000],
+                        allowExport: true,
+                        includeHeadersOnDownload: true,
+                    },
+                ];
+            
+                jspreadsheet.tabs(document.getElementById('spreadsheet'), sheets);
+            }
+
+            let sheets = [
+                {% for lab in lab_data -%}
+                {
+                    sheetName: '{{ lab['short_name'] }}',
+                    minDimensions:[4,10],
+                    url: '/user/access/lab/{{ lab['short_name'] }}',
+                    persistance: '/user/access/lab/{{ lab['short_name'] }}',
+                    columns: [
+                        { title: 'Username', width: 100, name: 'username' },
+                        { title: 'Profiles', width: 200, name: 'lab_profiles' },
+                        { title: 'Active Till Dates', width: 200, name: 'active_till_dates' },
+                        { title: 'Time Quotas', width: 100, name: 'time_quota' },
+                        { title: 'Comments', width: 500, name: 'comments' },
+                    ],
+                    search: true,
+                    pagination: 25,
+                    paginationOptions: [25,50,100,200,500,10000],
+                    allowExport: true,
+                    includeHeadersOnDownload: true,
+                },
+                {% endfor -%}
+            ];
+
+            jspreadsheet.tabs(document.getElementById('spreadsheet'), sheets);
+
+        </script>
+    </section>
+
+    <section>
+        <div id="possible-profiles">
+        <h3>Possible Labs and Profiles</h3>
+        {% for lab in lab_data -%}
+        <p>
+            <b>{{ lab['short_name'] }}</b>: 
+            {% for profile in lab['profiles'] -%}
+            {{ profile }}, &nbsp;
+            {% endfor -%}
+        </p>
+        {% endfor -%}
+        </div>
+    </section>
+    
+    <br/>
+    <hr/>
+    <br/>
+
+    <section>
+        <p>
+            Each spreadsheet tab represents a lab deployment. 
+            The name of the tab is the lab short name.
+            Users can only gain access to labs that enabled and are active, i.e. are listed in the Portal <i>labs.yaml</i>.
+        </p>
+
+        <p>The following logic is used to parse the spreadsheet:</p>
+
+        <h3>Order of Precedence</h3>
+        <p>The following is the order in which the various sheet fields are evaluated to calculate access:</p>
+        <p>
+            1. Rows are removed based on Active Till Dates <br/>
+            2. Usernames are checked for removal <br/>
+            3. Profiles are checked for removal
+        </p>
+
+        <h3>Usernames</h3>
+        <p>If an username is given, they are added to the lab group if they already don't belong.</p>
+        <p>For public labs, unrestricted users are implicitly given access if not otherwise blocked. Limited users need to be explicitly added. All prohibited users will be denied.</p>
+        <p>For private labs, all unrestricted and limited users need to be explicitly added. All prohibited users will be denied.</p>
+        <p>If an username is prepended by a <b>!</b> (<i>!username</i>), they are removed from the lab group.</p>
+        <p>The wildcard (<b>*</b>) represents default values (for profiles, etc) for all allowed users. It does not grabt automatic access for users.</p>
+        <p>The not wildcard (<b>!*</b>) removes any wildcard (<b>*</b>) entries. It does not denying access to all users.</p>
+        <p>As a special case, if a double not (<b>!!</b>) is given, then all usernames are denied access to the lab group.</p>
+
+        <h3>Lab Profiles</h3>
+        <p>
+            Useable lab profiles are defined in each Lab Deployment's <i>opensciencelab.yaml</i> config. 
+            Profiles in the spreadsheet that are not defined in the lab config are ignored.
+        </p>
+        <p>Multiple profiles can be given per entry in a comma seperated format: 'SAR 1, SAR 2'.</p>
+        <p>Spacing around profile names is ignored.</p>
+        <p>Wildcard username (<b>*</b>) define default profiles. These will be added cumulatively to all profiles.</p>
+        <p>Profiles across multiple rows for an username are combined.</p>
+        <p>Prepended with a ! (<i>!profile_name</i>) negates that profile for that username.</p>
+        <p>A profile name with an astrisk (<b>*</b>) does not mean all available profiles. Profiles names must be explicitly given.</p>
+        <p>If no valid profiles are given for any user row, the user will be denied entry into the lab.</p>
+
+        <h3>Active Till Dates</h3>
+        <p>A row can be active for a set period of time. Outside this time the row will be effectively deleted.</p>
+        <p>
+            Empty cell entries are ignored.
+            Misconfigured dates will be ignored. 
+            Misformatted entries will be ignored.
+        </p>
+        <p>All dates must be in <a href=https://www.w3.org/TR/NOTE-datetime>ISO-8601 format</a>. </p>
+        <p>All dates default to UTC and have an implict time of 00:00:00 unless otherwise explicitly given.</p>
+        <p>
+            Default start date of activity is '1900-01-01' if not explicity given.
+            Default end date of activity is '2626-01-01' if not explicity given.
+        </p>
+        <p>
+            Cell entries like 'YYYY-mm-DD' (no arrow) are active until the given datetime. After this datetime, the row is effectively deleted.  <br/>
+            Cell entries like '=> YYYY-mm-DD' (arrow in the beginning) are active until the given datetime. After this datetime, the row is effectively deleted. <br/>
+            Cell entries like 'YYYY-mm-DD => YYYY-mm-DD' (arrow in the middle) act as a range of activity. Outside this range, the row is effectively deleted. <br/>
+            Cell entries like 'YYYY-mm-DD =>' (arrow at the end) are active starting from the given datetime until the far future. Before this datetime, the row is effectively deleted. <br/>
+            Arrows can have no or any whitespace around them. All the following are treated the same: '=>', ' => ', '   =>'.  <br/>
+            Cells beginning with an arrow need to be escaped by wrapping around either double or single quotes.
+        </p>
+
+        <h3>Time Quotas</h3>
+        <p><i>Not implemented</i></p>
+        <p>Time quota credits represent the max amount of cpu-hours per month per user. 
+            [An EC2 with 1 CPU used for one hour will be one credit. A m5.2xlarge (4 cpus) ran for 6 hours burns through 24 credits.] 
+        </p>
+        <p>If there is more than one instance of an username (multiple rows or *), the time quota value assigned is the value of the username's last row.</p>
+    </section>
+
+    <footer></footer>
+</body>
+</html>

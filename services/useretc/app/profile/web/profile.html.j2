@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Profile for {{ username }}</title>
+
+    <link rel="stylesheet" 
+        href="https://cdn.jsdelivr.net/npm/purecss@2.2.0/build/pure-min.css" 
+        integrity="sha384-7UE2/aLxcikvluV1XGghN2k6i+LoAwMjrZb4oVT9gGPPcLd2sjqAtgIinHb11RJz" 
+        crossorigin="anonymous">
+    <style>
+        #err_string {
+            border: 1px solid black; 
+            padding: 5px; 
+            color: red;
+        }
+
+        fieldset div {
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        .button-success {
+            color: white;
+            border-radius: 4px;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+            background: rgb(28, 184, 65);
+        }
+
+        label {
+            margin-right: 10px !important;
+        }
+
+        .margin-left-50 {
+            margin-left: 50px;
+        }
+
+        .margin-left-10 {
+            margin-left: 10px;
+            padding-left: 10px;
+            border-left: 1px solid black;
+        }
+
+        .margin-left-20 {
+            margin-left: 20px;
+            padding-left: 20px;
+            border-left: 1px solid orange;
+        }
+
+        .margin-bottom-20 {
+            margin-bottom: 20px;
+        }
+
+        .margin-top-30 {
+            margin-top: 30px;
+        }
+
+        .p-description {
+            color: #1d9538;
+            font-size:large;
+        } 
+
+    </style>
+</head>
+<body>
+
+    <div class="margin-left-50">
+
+        <div class="margin-bottom-20">
+            <h2>Hello <i>{{ username }}</i></h2>
+        </div>
+
+        <div>
+            <p class="p-description">
+                Due to changes in our access policy, all users of OpenScienceLab are required to update their profile information. Please answer the five questions below.
+            </p>
+        </div>
+
+        {% if err_string is defined and err_string != None -%}
+        <div>
+            <p id="err_string">
+                {{ err_string }}
+            </p>
+        </div>
+        {% endif -%}
+
+        {% if user_profile.force_update == False %}
+        <div>
+            <button onclick="location.href='{{ previous }}'" class="pure-button pure-button-primary" type="button">Go back</button>
+        </div>
+        {% endif -%}
+
+        
+        <div class="margin-top-30">
+            <form class="pure-form" method="post" novalidate>
+                <fieldset>
+
+                    <div>
+                        <label>{{ friendly_conversion['country_of_residence'] }}</label>
+                        <select id="country_of_residence" name="country_of_residence">
+                            <option>{{ default_value }}</option>
+                            {% for country in form_data['country_of_residence'] -%}
+                            {% if user_profile.country_of_residence == country -%}
+                            <option value="{{ country }}" selected >{{ form_data['country_of_residence'][country] }}</option>
+                            {% else -%}
+                            <option value="{{ country }}">{{ form_data['country_of_residence'][country] }}</option>
+                            {% endif -%}
+                            {% endfor -%}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>{{ friendly_conversion['is_affliated_with_nasa_research'] }}</label>
+                        <select id="is_affliated_with_nasa_research" name="is_affliated_with_nasa_research">
+                            <option>{{ default_value }}</option>
+                            {% for field in form_data['is_affliated_with_nasa_research'] -%}
+                            {% if user_profile.is_affliated_with_nasa_research == field -%}
+                            <option value="{{ field }}" selected >{{ field }}</option>
+                            {% else -%}
+                            <option value="{{ field }}">{{ field }}</option>
+                            {% endif -%}
+                            {% endfor -%}
+                        </select>
+                    </div>
+
+                        <div class="margin-left-10" id="has_affliated_with_nasa_research_email_div">
+                            <label>{{ friendly_conversion['has_affliated_with_nasa_research_email'] }}</label>
+                            <select id="has_affliated_with_nasa_research_email" name="has_affliated_with_nasa_research_email">
+                                <option>{{ default_value }}</option>
+                                {% for field in form_data['has_affliated_with_nasa_research_email'] -%}
+                                {% if user_profile.has_affliated_with_nasa_research_email == field -%}
+                                <option value="{{ field }}" selected >{{ field }}</option>
+                                {% else -%}
+                                <option value="{{ field }}">{{ field }}</option>
+                                {% endif -%}
+                                {% endfor -%}
+                            </select>
+
+                            <div class="margin-left-20" id="user_affliated_with_nasa_research_email_div">
+                                <label>{{ friendly_conversion['user_affliated_with_nasa_research_email'] }}</label>
+                                <input id="user_affliated_with_nasa_research_email" name="user_affliated_with_nasa_research_email" type="email"
+                                    placeholder="example@nasa.gov" value="{{ user_profile.user_affliated_with_nasa_research_email }}">
+                            </div>
+
+                            <div class="margin-left-20" id="pi_affliated_with_nasa_research_email_div">
+                                <label>{{ friendly_conversion['pi_affliated_with_nasa_research_email'] }}</label>
+                                <input id="pi_affliated_with_nasa_research_email" name="pi_affliated_with_nasa_research_email" type="email" 
+                                    placeholder="example@nasa.gov" value="{{ user_profile.pi_affliated_with_nasa_research_email }}">
+                            </div>
+                        </div>
+
+                    <div>
+                        <label>{{ friendly_conversion['is_affliated_with_gov_research'] }}</label>
+                        <select id="is_affliated_with_gov_research" name="is_affliated_with_gov_research">
+                            <option>{{ default_value }}</option>
+                            {% for field in form_data['is_affliated_with_gov_research'] -%}
+                            {% if user_profile.is_affliated_with_gov_research == field -%}
+                            <option value="{{ field }}" selected >{{ field }}</option>
+                            {% else -%}
+                            <option value="{{ field }}">{{ field }}</option>
+                            {% endif -%}
+                            {% endfor -%}
+                        </select>
+                    </div>
+
+                        <div class="margin-left-10" id="user_affliated_with_gov_research_email_div">
+                            <label>{{ friendly_conversion['user_affliated_with_gov_research_email'] }}</label>
+                            <input id="user_affliated_with_gov_research_email" name="user_affliated_with_gov_research_email" type="email" 
+                                placeholder="example@example.com"  value="{{ user_profile.user_affliated_with_gov_research_email }}">
+                        </div>
+
+                    <div>
+                        <label>{{ friendly_conversion['is_affliated_with_isro_research'] }}</label>
+                        <select id="is_affliated_with_isro_research" name="is_affliated_with_isro_research">
+                            <option>{{ default_value }}</option>
+                            {% for field in form_data['is_affliated_with_isro_research'] -%}
+                            {% if user_profile.is_affliated_with_isro_research == field -%}
+                            <option value="{{ field }}" selected >{{ field }}</option>
+                            {% else -%}
+                            <option value="{{ field }}">{{ field }}</option>
+                            {% endif -%}
+                            {% endfor -%}
+                        </select>
+                    </div>
+
+                        <div class="margin-left-10" id="user_affliated_with_isro_research_email_div">
+                            <label>{{ friendly_conversion['user_affliated_with_isro_research_email'] }}</label>
+                            <input id="user_affliated_with_isro_research_email" name="user_affliated_with_isro_research_email" type="email" 
+                                placeholder="example@example.com"  value="{{ user_profile.user_affliated_with_isro_research_email }}">
+                        </div>
+
+                    <div>
+                        <label>{{ friendly_conversion['is_affliated_with_university'] }}</label>
+                        <select id="is_affliated_with_university" name="is_affliated_with_university">
+                            <option>{{ default_value }}</option>
+                            {% for field in form_data['is_affliated_with_university'] -%}
+                            {% if user_profile.is_affliated_with_university == field -%}
+                            <option value="{{ field }}" selected >{{ field }}</option>
+                            {% else -%}
+                            <option value="{{ field }}">{{ field }}</option>
+                            {% endif -%}
+                            {% endfor -%}
+                        </select>
+                    </div>
+
+                        <div class="margin-left-10" id="faculty_member_affliated_with_university_div">
+                            <label>{{ friendly_conversion['faculty_member_affliated_with_university'] }}</label>
+                            <select id="faculty_member_affliated_with_university" name="faculty_member_affliated_with_university">
+                                <option></option>
+                                {% for field in form_data['faculty_member_affliated_with_university'] -%}
+                                {% if user_profile.faculty_member_affliated_with_university == field -%}
+                                <option value="{{ field }}" selected >{{ field }}</option>
+                                {% else -%}
+                                <option value="{{ field }}">{{ field }}</option>
+                                {% endif -%}
+                                {% endfor -%}
+                            </select>
+                        </div>
+
+                        <div class="margin-left-10" id="research_member_affliated_with_university_div">
+                            <label>{{ friendly_conversion['research_member_affliated_with_university'] }}</label>
+                            <select id="research_member_affliated_with_university" name="research_member_affliated_with_university">
+                                <option></option>
+                                {% for field in form_data['research_member_affliated_with_university'] -%}
+                                {% if user_profile.research_member_affliated_with_university == field -%}
+                                <option value="{{ field }}" selected >{{ field }}</option>
+                                {% else -%}
+                                <option value="{{ field }}">{{ field }}</option>
+                                {% endif -%}
+                                {% endfor -%}
+                            </select>
+                        </div>
+
+                        <div class="margin-left-10" id="graduate_student_affliated_with_university_div">
+                            <label>{{ friendly_conversion['graduate_student_affliated_with_university'] }}</label>
+                            <select id="graduate_student_affliated_with_university" name="graduate_student_affliated_with_university">
+                                <option></option>
+                                {% for field in form_data['graduate_student_affliated_with_university'] -%}
+                                {% if user_profile.graduate_student_affliated_with_university == field -%}
+                                <option value="{{ field }}" selected >{{ field }}</option>
+                                {% else -%}
+                                <option value="{{ field }}">{{ field }}</option>
+                                {% endif -%}
+                                {% endfor -%}
+                            </select>
+                        </div>
+
+                    <!-- Sumbit button -->
+                    <div class="margin-top-30">
+                        <button class="pure-button pure-button-success" type="submit">Submit Your Answers</button>
+                    </div>
+
+                </fieldset>
+            </form>
+        </div>
+
+        <script type="text/javascript">
+
+            // Yes, I know that javascript convention is to use camelcase, not snakecase. But I don't care.
+
+            let is_affliated_with_nasa_research = document.getElementById('is_affliated_with_nasa_research');
+            is_affliated_with_nasa_research.onchange = my_callback_1
+            function my_callback_1() {
+                var that = this;
+                var el = document.getElementById('has_affliated_with_nasa_research_email_div');
+                if (that.options[that.selectedIndex].value === 'Yes') {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+            };
+            is_affliated_with_nasa_research.onchange();
+
+            let has_affliated_with_nasa_research_email = document.getElementById('has_affliated_with_nasa_research_email');
+            has_affliated_with_nasa_research_email.onchange = my_callback_2
+            function my_callback_2() {
+                var that = this;
+
+                var el = document.getElementById('user_affliated_with_nasa_research_email_div');
+                if (that.options[that.selectedIndex].value === 'Yes') {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+
+                var el = document.getElementById('pi_affliated_with_nasa_research_email_div');
+                if (that.options[that.selectedIndex].value === 'No') {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+            };
+            has_affliated_with_nasa_research_email.onchange();
+
+            let is_affliated_with_gov_research = document.getElementById('is_affliated_with_gov_research');
+            is_affliated_with_gov_research.onchange = my_callback_3
+            function my_callback_3() {
+                var that = this;
+
+                var el = document.getElementById('user_affliated_with_gov_research_email_div');
+                if (that.options[that.selectedIndex].value === 'Yes') {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+            };
+            is_affliated_with_gov_research.onchange();
+
+            let is_affliated_with_isro_research = document.getElementById('is_affliated_with_isro_research');
+            is_affliated_with_isro_research.onchange = my_callback_4
+            function my_callback_4() {
+                var that = this;
+
+                var el = document.getElementById('user_affliated_with_isro_research_email_div');
+                if (that.options[that.selectedIndex].value === 'Yes') {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+            };
+            is_affliated_with_isro_research.onchange();
+
+            let is_affliated_with_university = document.getElementById('is_affliated_with_university');
+            is_affliated_with_university.onchange = my_callback_5
+            function my_callback_5() {
+                var that = this;
+
+                 var el = document.getElementById('faculty_member_affliated_with_university_div');
+                if (that.options[that.selectedIndex].value === 'Yes') {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+
+                var el = document.getElementById('research_member_affliated_with_university_div');
+                if (that.options[that.selectedIndex].value === 'Yes') {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+
+                var el = document.getElementById('graduate_student_affliated_with_university_div');
+                if (that.options[that.selectedIndex].value === 'Yes') {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+
+            };
+            is_affliated_with_university.onchange();
+
+        </script>
+
+    </div>
+
+</body>
+</html>

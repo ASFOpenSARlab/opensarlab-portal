@@ -1,0 +1,780 @@
+# This is meant to be ran once on initial build.
+# Any updates should be done manually inside a Connect terminal.
+
+---
+Parameters:
+  CodeCommitRepoName:
+    Description: The code commit repo name that holds the portal code. It's assumed to be in the same account/region as this cloudformation.
+    Type: String
+
+  CertificateArn:
+    Description: The ARN of the SSL certificate attached to the load balancer.
+    Type: String
+
+  ContainerNamespace:
+    Description: The namespace for the various Portal images.
+    Type: String
+
+  CostTagKey:
+    Description: Key of the cost allocation tag
+    Type: String
+    Default: osl-billing
+
+  CostTagValue:
+    Description: Value of the cost allocation tag
+    Type: String
+
+  EC2ImageAlias:
+    Description: (Usually allow AWS to fill this) AMI id for the portal EC2.
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+  AdminEmailAddress:
+    Description: Email address of admins. Used to fill in Under Construction webpage.
+    Type: String
+    Default: admin@example.com
+
+Outputs:
+
+  DockerRegistryDomain:
+    Description: The domain of ECR 
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com"
+
+  DockerRegistryRepo:
+    Description: The ECR repo name
+    Value: !Sub "${PortalECR}"
+
+  LoadBalancerDNS:
+    Description: The DNS name for the load balancer
+    Value: !GetAtt LoadBalancerforEC2.DNSName
+
+  AWSRegion:
+    Description: The region
+    Value: !Sub "${AWS::Region}"
+
+Resources:
+
+  #########################
+  ##### Networking
+  #########################
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16  # 10.0.0.0 - 10.0.255.255
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub VPC - ${CostTagValue}
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${CostTagValue}
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  VPCInternetGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: 
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24  # 10.0.1.0 - 10.0.1.255
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Sub ${AWS::Region}a
+      Tags:
+        - Key: Name
+          Value: !Sub Public Subnet 1 - ${CostTagValue}
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.255.0/24  # 10.0.255.0 - 10.0.255.255
+      AvailabilityZone: !Sub ${AWS::Region}b
+      Tags:
+        - Key: Name
+          Value: !Sub Public Subnet 2 - ${CostTagValue}
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Route Table 1
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AWS::Region}-${CostTagValue}-elb
+      GroupDescription: "Security Group for ELB"
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ELB Security - ${CostTagValue}
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AWS::Region}-${CostTagValue}-ec2
+      GroupDescription: "Security Group for EC2"
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub EC2 Security - ${CostTagValue}
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  LoadBalancerFromInternetOn80Rules:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+
+  LoadBalancerFromInternetOn443Rules:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+
+  LoadBalancerToEC2On80Rules:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
+      DestinationSecurityGroupId: !GetAtt EC2SecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+
+  EC2FromLoadBalancerOn80Rules:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt EC2SecurityGroup.GroupId
+      SourceSecurityGroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+
+  EC2FromAnywhereOn22Rules:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt EC2SecurityGroup.GroupId
+      CidrIp: 0.0.0.0/0
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+
+  PortalInstanceTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${CostTagValue}-instance
+      Tags:
+        - Key: Name
+          Value: !Sub ${CostTagValue}
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+      Port: 80
+      Protocol: HTTP
+      HealthCheckPath: /portal/hub/health
+      HealthCheckIntervalSeconds: 120
+      HealthyThresholdCount: 2
+      TargetType: instance
+      VpcId: !Ref VPC
+
+  UnderConstructionLambdaTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${CostTagValue}-lambda
+      Tags:
+        - Key: Name
+          Value: !Sub ${CostTagValue}
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+      HealthCheckEnabled: false
+      TargetType: lambda
+      Targets:
+        - Id: !GetAtt [ UnderConstructionLambdaFunction, Arn ]
+
+  UnderConstructionLambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: "index.handler"
+      Role: !GetAtt [ UnderConstructionLambdaExecutionRole, Arn ]
+      Code:
+        ZipFile: !Sub |
+          def handler(event, context):
+            return {
+              "statusCode": 200,
+              "statusDescription": "200 OK",
+              "isBase64Encoded": False,
+              "headers": {
+                "Content-Type": "text/html; charset=utf-8"
+              },
+              "body": """
+                    <html>
+                    <head>
+                      <title>OpenScienceLab</title>
+                      <style>
+                        html, body {
+                          margin: 0; padding: 0;
+                          font-family: arial; font-weight: 10; font-size: 1em;
+                          text-align: center;
+                        }
+                        div > img {
+                          width: 100px;
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      <h1>OpenScienceLab is under construction</h1>
+                      <div>
+                        <image src="https://upload.wikimedia.org/wikipedia/commons/c/c7/UnderConstruction.svg"></image>
+                      </div>
+                      <p>Please bear with us as we improve OpenScienceLab.</p>
+                      <p>Any user data should be safe and secure. Any JupyterLab kernels will need to be restarted once the update is complete.</p>
+                      <p>If you have any concerns, please <a href="mailto:${AdminEmailAddress}"> email the OpenScienceLab admins</a>.</p>
+                    </body>
+                    </html>
+                """
+            }
+      Runtime: "python3.10"
+      Timeout: "25"
+
+  UnderConstructionLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt
+        - UnderConstructionLambdaFunction
+        - Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: elasticloadbalancing.amazonaws.com
+
+  UnderConstructionLambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+
+  LoadBalancerforEC2:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Name: !Sub ${AWS::Region}-${CostTagValue}
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::Region}-${CostTagValue}
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+      SecurityGroups:
+        - !GetAtt LoadBalancerSecurityGroup.GroupId
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+
+  HttpListenerForLoadBalancerforEC2:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancerforEC2
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            StatusCode: HTTP_301
+            Protocol: HTTPS
+            Port: "443"
+
+  HttpsListenerForLoadBalancerforEC2:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancerforEC2
+      Protocol: HTTPS
+      Port: 443
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref PortalInstanceTargetGroup
+                Weight: 1
+              - TargetGroupArn: !Ref UnderConstructionLambdaTargetGroup
+                Weight: 0
+
+
+  #########################
+  ##### ECR
+  #########################
+
+  PortalECR:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${ContainerNamespace}/portal
+      Tags: 
+        - Key: Name
+          Value: !Sub ${CostTagValue}-portal
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  NginxECR:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${ContainerNamespace}/nginx
+      Tags: 
+        - Key: Name
+          Value: !Sub ${CostTagValue}-nginx
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  UserEtcECR:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${ContainerNamespace}/useretc
+      Tags: 
+        - Key: Name
+          Value: !Sub ${CostTagValue}-useretc
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  MyDevLabECR:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${ContainerNamespace}/mydevlab
+      Tags: 
+        - Key: Name
+          Value: !Sub ${CostTagValue}-mydevlab
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+
+  #########################
+  ##### Policies and Roles
+  #########################
+
+  EC2InstancePolicyCloudwatchLogs:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy actions to send logs to cloudwatch
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogStreams
+            Resource:
+            - arn:aws:logs:*:*:*
+
+  EC2InstancePolicyConnect:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy to use SSH client to connect to an instance using EC2 Instance Connect
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "ec2-instance-connect:SendSSHPublicKey"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "ec2:osuser": "ec2-user"
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:DescribeInstances"
+
+  EC2InstancePolicyBuildSh:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy actions used by build.sh within EC2
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "ecr:*"
+            Resource: "*"
+
+  EC2InstancePolicyDeploySh:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy actions used by deploy.sh within EC2
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetResourcePolicy
+              - secretsmanager:GetSecretValue
+              - secretsmanager:DescribeSecret
+              - secretsmanager:ListSecretVersionIds
+            Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*
+          - Effect: Allow
+            Action: secretsmanager:ListSecrets
+            Resource: "*"
+          - Effect: Allow
+            Action: "ecr:*"
+            Resource: "*"
+
+  EC2InstancePolicyUserData:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy actions used in the EC2 User Data section
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "codecommit:GitPull"
+            Resource: !Sub arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${CodeCommitRepoName}
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:DescribeInstances"
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:DescribeVolumes"
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:AttachVolume"
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:CreateTags"
+
+  EC2InstancePolicyReplaceDBFile:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy actions used in the EC2 to replace the DB file
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:CreateVolume"
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:DeleteVolume"
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:AttachVolume"
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:DetachVolume"
+          - Effect: Allow
+            Resource: "*"
+            Action: "ec2:CreateTags"
+
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::Region}-${CostTagValue}-instance-role
+      AssumeRolePolicyDocument:
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: ec2.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref EC2InstancePolicyConnect
+        - !Ref EC2InstancePolicyBuildSh
+        - !Ref EC2InstancePolicyDeploySh
+        - !Ref EC2InstancePolicyUserData
+        - !Ref EC2InstancePolicyCloudwatchLogs
+        - !Ref EC2InstancePolicyReplaceDBFile
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      InstanceProfileName: !Sub ${AWS::Region}-${CostTagValue}
+      Roles: 
+        - !Ref EC2InstanceRole
+
+  DatabaseEBSSnapshotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::Region}-${CostTagValue}-jhdatabase
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: dlm.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSDataLifecycleManagerServiceRole
+
+
+  #########################
+  ##### Volume and Snapshot
+  #########################
+
+  DatabaseEBSVolume:
+    Type: AWS::EC2::Volume
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Properties:
+      AvailabilityZone: !GetAtt PublicSubnet1.AvailabilityZone
+      Size: 1
+      VolumeType: gp2
+      Tags:
+        - Key: Name
+          Value: !Sub ${CostTagValue}-jupyterhub-db
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+
+  DatabaseEBSSnapshotPolicy:
+    Type: AWS::DLM::LifecyclePolicy
+    Properties:
+      Description: "Lifecycle Policy for Database EBS Snapshots on the 6th hour and daily"
+      State: ENABLED
+      ExecutionRoleArn: !GetAtt DatabaseEBSSnapshotRole.Arn
+      PolicyDetails:
+        ResourceTypes:
+        - VOLUME
+        TargetTags:
+        - Key: Name
+          Value: !Sub ${CostTagValue}-jupyterhub-db
+        Schedules:
+        - Name: Every Six Hours Snapshots
+          TagsToAdd:
+          - Key: Type
+            Value: SixlySnapshot
+          CreateRule:
+            CronExpression: cron(0 6,12,18 * * ? *)
+          RetainRule:
+            Count: 3
+          CopyTags: true
+        - Name: Daily Snapshots
+          TagsToAdd:
+          - Key: Type
+            Value: DailySnapshot
+          CreateRule:
+            CronExpression: cron(0 0 * * ? *)
+          RetainRule:
+            Count: 3
+          CopyTags: true
+
+  #########################
+  ##### Secrets Manager
+  #########################
+
+  SSOTokenSecretsManager:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: SSO Token to communicate with the Portal.
+      Name: !Sub 
+        - '${ContainerNamespace}/sso-${RandomGUID}'
+        - { RandomGUID: !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref AWS::StackId ]]]] }
+      SecretString: "ReplaceMeOrYouWillAlwaysFail"
+
+  SESSecretsManager:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: SSO Token to communicate with the Portal.
+      Name: !Sub 
+        - '${ContainerNamespace}/ses-${RandomGUID}'
+        - { RandomGUID: !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref AWS::StackId ]]]] }
+      SecretString: "ReplaceMeOrYouWillAlwaysFail"
+
+  #########################
+  ##### Autoscaler
+  #########################
+
+  AutoScalingGroupPortal:
+    DependsOn:
+         - "InternetGateway"
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          OnDemandAllocationStrategy: lowest-price
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref LaunchTemplatePortal
+            Version: !GetAtt  LaunchTemplatePortal.LatestVersionNumber
+          Overrides:
+            - InstanceType: t2.medium
+      MinSize: "1"
+      MaxSize: "1"
+      VPCZoneIdentifier: 
+        - !Ref PublicSubnet1
+      TargetGroupARNs:
+        - !Ref PortalInstanceTargetGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${CostTagValue}-portal
+          PropagateAtLaunch: true
+        - Key: !Sub ${CostTagKey}
+          Value: !Sub ${CostTagValue}
+          PropagateAtLaunch: true
+
+  LaunchTemplatePortal:
+    DependsOn:
+         - "DatabaseEBSVolume"
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${CostTagValue}-portal-launch-template
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeType: gp3
+              VolumeSize: 8
+              DeleteOnTermination: 'true'
+              Encrypted: 'false'
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub ${CostTagValue}-portal
+              - Key: !Sub ${CostTagKey}
+                Value: !Sub ${CostTagValue}
+        IamInstanceProfile:
+          Arn: !GetAtt EC2InstanceProfile.Arn
+        ImageId: !Ref EC2ImageAlias
+        InstanceType: t2.medium
+        SecurityGroupIds:
+          - !GetAtt EC2SecurityGroup.GroupId
+        UserData: 
+          Fn::Base64: !Sub |
+            #!/bin/bash
+
+            set -xe
+
+            dnf update -y
+
+            echo "***************** Install rsyslog as a backstop for journalctl"
+            dnf install -y rsyslog
+
+            dnf install -y make
+
+            echo "***************** Install cloudwatch agent"
+            # This installation is for both instance logging and docker-compose app logging
+            dnf install -y amazon-cloudwatch-agent
+            RandomHash=$(echo $RANDOM | md5sum | head -c 20)
+
+            echo " 
+            {
+                \"agent\": {
+                    \"metrics_collection_interval\": 60,
+                    \"run_as_user\": \"root\"
+                },
+                \"logs\": {
+                    \"logs_collected\": {
+                      \"files\": {
+                        \"collect_list\": [{
+                          \"log_group_name\": \"/custom/portal/system\",
+                          \"file_path\": \"/var/log/cloud-init-output.log\",
+                          \"log_stream_name\": \"${CostTagValue}-$RandomHash-{instance_id}/var/log/cloud-init-output.log\"
+                        }, {
+                          \"log_group_name\": \"/custom/portal/system\",
+                          \"file_path\": \"/var/log/messages\",
+                          \"log_stream_name\": \"${CostTagValue}-$RandomHash-{instance_id}/var/log/messages\",
+                          \"timestamp_format\": \"%b %-d %H:%M:%S\"
+                        }]
+                      }
+                    }
+                }
+            }" > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+            amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+            sleep 1
+            amazon-cloudwatch-agent-ctl -m ec2 -a status
+
+            echo "***************** Install and start docker"
+            dnf install -y docker
+            service docker start
+            usermod -a -G docker ec2-user
+            chkconfig docker on
+
+            echo "***************** Name root volume"
+            EC2_INSTANCE_ID=$(ec2-metadata -i | cut -d ' ' -f 2) 
+            ROOT_VOLUME_ID=$(aws ec2 describe-instances --region ${AWS::Region} --instance-id $EC2_INSTANCE_ID --output text --query Reservations[0].Instances[0].BlockDeviceMappings[0].Ebs.VolumeId)
+            aws ec2 create-tags --resources $ROOT_VOLUME_ID --region ${AWS::Region} --tags Key=${CostTagKey},Value=${CostTagValue} Key=Name,Value=${CostTagValue}-root
+
+            echo "***************** Clone code commit code"
+            dnf install -y git
+            if [[ ! -d "/home/ec2-user/code" ]]
+            then
+              git config --system credential.helper '!aws codecommit credential-helper $@'
+              git config --system credential.UseHttpPath true
+              git clone https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${CodeCommitRepoName} /home/ec2-user/code
+              chown -R ec2-user:root /home/ec2-user/code
+            fi
+
+            echo "Add bashrc script so next startup will start with venv and code..."
+            mkdir -p /home/ec2-user/.bashrc.d/
+            cat << EOF > /home/ec2-user/.bashrc.d/startup.sh
+            if [[ -f /home/ec2-user/venv/bin/activate ]] ; then
+                source /home/ec2-user/venv/bin/activate
+            fi
+            cd /home/ec2-user/code
+            EOF
+
+            # Attach DB volume to instance. 
+            # Since instance is the only one, this will work. 
+            # If the Portal ever goes to more than one, this will fail.
+            DB_VOL_ID=${DatabaseEBSVolume.VolumeId}
+            EC2_INSTANCE_ID=$(ec2-metadata -i | cut -d ' ' -f 2)
+            echo "DB Volume ID: $DB_VOL_ID, EC2 ID: $EC2_INSTANCE_ID"
+
+            VOL_STATUS='' 
+            until [[ $VOL_STATUS == '"available"' ]]; do
+                VOL_STATUS=$(aws ec2 describe-volumes --volume-ids $DB_VOL_ID --query 'Volumes[0].State')
+                echo "Volume status is $VOL_STATUS. Sleep for 5 seconds..."
+                sleep 5
+            done
+
+            echo "Attach DB volume to EC2 as device /dev/xvdj"
+            aws ec2 attach-volume --volume-id $DB_VOL_ID --instance-id $EC2_INSTANCE_ID --device /dev/xvdj
+
+            echo "Done with EC2 setup"

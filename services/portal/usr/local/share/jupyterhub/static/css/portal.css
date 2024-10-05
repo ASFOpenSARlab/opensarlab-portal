@@ -1,0 +1,38 @@
+fieldset {
+    padding: 40px;
+    border: 1px solid silver;
+}
+
+fieldset legend {
+    width: auto;
+    margin-bottom: 0px;
+    border: 0px;
+    padding: 10px;
+    font-size: 30px;
+}
+
+.go-to-lab-btn {
+    float: right;
+    margin: 5px;
+}
+
+.go-to-about-btn {
+    float: right;
+    margin: 5px;
+}
+
+.mylab-logo-img {
+    max-height: 100px;
+    max-width: 100%;
+    padding: 10px;
+}
+
+.lab-description {
+    padding: 20px;
+    float: left;
+    width: 80%;
+}
+
+.lab-btns {
+    float: right;
+}

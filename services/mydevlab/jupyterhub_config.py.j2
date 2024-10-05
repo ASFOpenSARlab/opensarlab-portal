@@ -1,0 +1,45 @@
+import os
+import netifaces
+
+docker0 = netifaces.ifaddresses('docker0')
+docker0_ipv4 = docker0[netifaces.AF_INET][0]['addr']
+print(f"************ {docker0_ipv4=}")
+
+ADMIN_USERS = {'{{ admin_user }}'}
+LAB_SHORTNAME = '{{ lab_short_name }}'
+PORTAL_DOMAIN = '{{ portal_domain }}'
+
+# Used in myauth.py
+os.environ['JUPYTERHUB_LAB_NAME'] = LAB_SHORTNAME
+
+os.environ['OPENSCIENCELAB_PORTAL_DOMAIN'] = PORTAL_DOMAIN
+
+c.Authenticator.admin_users = ADMIN_USERS
+
+c.JupyterHub.default_url = f"/lab/{LAB_SHORTNAME}/hub/home"
+# Make sure the lab's ports don't interfere with the portal's
+c.JupyterHub.bind_url = f"http://{docker0_ipv4}:8100/lab/{LAB_SHORTNAME}"
+c.JupyterHub.hub_bind_url = f'http://{docker0_ipv4}:8181'
+c.ConfigurableHTTPProxy.api_url = f'http://{docker0_ipv4}:8101'
+
+c.JupyterHub.spawner_class = "docker"
+
+c.JupyterHub.hub_ip = '0.0.0.0'
+c.DockerSpawner.hub_ip_connect = docker0_ipv4
+
+c.DockerSpawner.image = 'jupyter/base-notebook:hub-4.1.0'
+c.DockerSpawner.use_internal_ip = True
+c.DockerSpawner.remove = True
+
+from portal_auth import PortalAuthenticator
+c.JupyterHub.authenticator_class = PortalAuthenticator
+
+# User cookie expires after a period of time.
+c.JupyterHub.tornado_settings = {
+    'cookie_options': {
+        'expires_days': 10./(3600*24),
+    },
+    'headers': {
+        'x-jupyterhub-lab': LAB_SHORTNAME
+    }
+}

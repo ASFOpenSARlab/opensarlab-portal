@@ -1,0 +1,98 @@
+{% macro registry_uri() -%}
+    {{ parameters.docker_registry_domain }}/{{ parameters.container_namespace }}
+{%- endmacro %}
+
+services:
+  localnginx:
+    image: {{ registry_uri() }}/nginx:{{ parameters.image_hash_tag }}
+    container_name: nginx
+    network_mode: host
+{% if parameters.use_aws_logs == True %}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: {{ parameters.aws_region }}
+        awslogs-group: /custom/portal/application/{{ parameters.container_namespace }}
+        awslogs-create-group: "true"
+        awslogs-stream: localnginx-{{ parameters.image_hash_tag }}
+{% endif %}
+
+  localportal:
+    depends_on:
+      - localnginx
+    image: {{ registry_uri() }}/portal:{{ parameters.image_hash_tag }}
+    command: jupyterhub -f /etc/jupyterhub/jupyterhub_config.py
+    container_name: portal
+    volumes:
+      - "./srv/portal/jupyterhub/:/srv/jupyterhub/"
+    network_mode: host
+    secrets:
+      - sso_token
+{% if parameters.use_aws_logs == True %}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: {{ parameters.aws_region }}
+        awslogs-group: /custom/portal/application/{{ parameters.container_namespace }}
+        awslogs-create-group: "true"
+        awslogs-stream: localportal-{{ parameters.image_hash_tag }}
+{% endif %}
+
+  localuseretc:
+    depends_on:
+      - localnginx
+      - localportal
+    image: {{ registry_uri() }}/useretc:{{ parameters.image_hash_tag }}
+    container_name: useretc
+    network_mode: host
+    secrets:
+      - ses_user
+      - ses_pass
+      - ses_url
+      - sso_token
+    volumes:
+      - "./srv/useretc/db/:/app/database/files/"
+{% if parameters.use_aws_logs == True %}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: {{ parameters.aws_region }}
+        awslogs-group: /custom/portal/application/{{ parameters.container_namespace }}
+        awslogs-create-group: "true"
+        awslogs-stream: localuseretc-{{ parameters.image_hash_tag }}
+{% endif %}
+
+{% if parameters.deploy_mydevlab == True %}
+  locallab:
+    depends_on:
+      - localnginx
+      - localportal
+    image: {{ registry_uri() }}/mydevlab:{{ parameters.image_hash_tag }}
+    command: jupyterhub update-db && jupyterhub -f /etc/jupyterhub/jupyterhub_config.py
+    container_name: mydevlab
+    volumes:
+      - "./srv/mylab/jupyterhub/:/srv/jupyterhub/"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    network_mode: host
+    secrets:
+      - sso_token
+{% if parameters.use_aws_logs == True %}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: {{ parameters.aws_region }}
+        awslogs-group: /custom/portal/application/{{ parameters.container_namespace }}
+        awslogs-create-group: "true"
+        awslogs-stream: locallab-{{ parameters.image_hash_tag }}
+{% endif %}
+{% endif %}
+
+secrets:
+  ses_user:
+    file: ./secrets/ses_user.secret
+  ses_pass:
+    file: ./secrets/ses_pass.secret
+  ses_url:
+    file: ./secrets/ses_url.secret
+  sso_token:
+    file: ./secrets/sso_token.secret

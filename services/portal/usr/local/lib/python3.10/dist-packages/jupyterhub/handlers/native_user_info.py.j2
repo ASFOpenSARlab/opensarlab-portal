@@ -1,0 +1,85 @@
+"""
+A wrapper around the /hub/api/user. So we don't have to pass around the API tokens, use this to get user info.
+"""
+
+import logging
+
+from .base import BaseHandler
+from jupyterhub import orm
+
+from opensarlab.auth import encryptedjwt
+
+
+class NativeUserInfoHandler(BaseHandler):
+
+    special_username = ['osl-admin']
+
+    async def _get_email_address_from_username(self, username: str = "") -> str:
+
+        if username == "":
+            raise Exception("Username cannot be empty")
+
+        if username in self.special_username:
+            return "{{ portal.stmp_verified_email }}"
+
+        # From DB, get email
+        session = orm.new_session_factory(
+            url="sqlite:////srv/jupyterhub/jupyterhub.sqlite"
+        )()
+
+        res = session.execute(
+            "select email from users_info where username=:username;",
+            {"username": username},
+        )
+
+        res = list(res)
+        if len(res) > 1:
+            raise Exception(
+                "More than one email for username found. This should not happen!"
+            )
+        elif len(res) == 0:
+            raise Exception(f"No email found for {username} when there should be one.")
+        else:
+            user_info = dict(res[0])
+
+        session.close()
+
+        return user_info["email"]
+
+    async def _get_mfa_status_from_username(self, username: str = "") -> bool:
+
+        if username in self.special_username:
+            return 0
+
+        # From DB, get 2fa status
+        session = orm.new_session_factory(
+            url="sqlite:////srv/jupyterhub/jupyterhub.sqlite"
+        )()
+
+        res = session.execute(
+            "select * from users_info where username=:username;",
+            {"username": username},
+        )
+
+        mfa_enabled = getattr(res.one(), "has_2fa")
+
+        session.close()
+
+        return mfa_enabled
+
+    async def get(self):
+        request_args = self.request.arguments
+
+        try:
+            username: str = request_args["username"][0].decode("utf-8")
+            data = {}
+            data['email'] = await self._get_email_address_from_username(username)
+            data["has_2fa"] = await self._get_mfa_status_from_username(username)
+        except Exception as e:
+            data = {"error": str(e)}
+
+        self.write(encryptedjwt.encrypt(data))
+        return
+
+
+default_handlers = [(r"/native-user-info", NativeUserInfoHandler)]

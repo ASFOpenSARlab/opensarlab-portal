@@ -1,0 +1,63 @@
+
+<html>
+<head>
+    <link rel="stylesheet" 
+        href="https://cdn.jsdelivr.net/npm/purecss@2.2.0/build/pure-min.css" 
+        integrity="sha384-7UE2/aLxcikvluV1XGghN2k6i+LoAwMjrZb4oVT9gGPPcLd2sjqAtgIinHb11RJz" 
+        crossorigin="anonymous">
+</head>
+<body>
+    <section>
+        <div style="margin-left: 50px; margin-top: 10px;">
+            <div>
+                <h1>Parse Encrypted Token</h1>
+                <div class="form-group">
+                    <p><i> 
+                        Within the text box paste the encrypted sso token. The unencrypted/decoded payload will be posted below.
+                    </i></p>
+                    <textarea 
+                        id="request-parse-textarea" 
+                        name="parse-token"
+                        rows="10"
+                        cols="100"
+                        required>
+                    </textarea>
+                </div>
+                <br/>
+                <button id="request-parse-submit" type="submit" class="pure-button pure-button-primary">Submit</button>
+            </div>
+            <div>
+                <p>Decryted Token:</p>
+                <p>
+                    <span id="request-parse-answer" style="color: green"></span>
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <script>
+
+        function send_data() {
+            const data = { token: document.getElementById('request-parse-textarea').value };
+
+            fetch('/user/helps/parse/token/decrypt', {
+                method: 'POST',
+                body: JSON.stringify(data),
+            })
+            .then((response) => response.text())
+            .then((response) => {
+                console.log('Success:', response);
+                document.getElementById('request-parse-answer').textContent = response
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+
+        document.getElementById('request-parse-submit').addEventListener("click", send_data);
+
+        // On page load, make sure the textarea is totally clear
+        document.getElementById('request-parse-textarea').textContent = ""
+    </script>
+</body>
+</html>

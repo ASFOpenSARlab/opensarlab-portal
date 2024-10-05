@@ -1,0 +1,141 @@
+
+import shelve
+import os
+import secrets
+
+import nativeauthenticator
+
+c = get_config()
+
+def set_jh_secret(secret_name: str, secret_text: str) -> str:
+    with open(f"/usr/local/secrets/{secret_name}", 'w+') as f:
+        f.write(secret_text)
+
+def get_jh_secret(secret_name: str) -> str:
+    with open(f"/usr/local/secrets/{secret_name}", 'r') as f:
+        value = f.read()
+    return value
+
+def get_run_secret(secret_name: str) -> str:
+    with open(f"/run/secrets/{secret_name}", 'r') as f:
+        value = f.read()
+    return value
+
+# Set API token
+set_jh_secret('portal-user-ro-token', str(secrets.token_hex(32)))
+set_jh_secret('portal-user-w-token', str(secrets.token_hex(32)))
+
+######
+#  Native Authenticator
+######
+
+c.JupyterHub.authenticator_class = 'nativeauthenticator.NativeAuthenticator'
+
+c.JupyterHub.template_paths = [f"{os.path.dirname(nativeauthenticator.__file__)}/templates/", "/usr/local/share/jupyterhub/templates/"]
+
+c.NativeAuthenticator.open_signup = False
+c.NativeAuthenticator.tos = 'I agree to the <a href="/tos" target="_blank">Terms of Service</a><br>'
+
+c.NativeAuthenticator.check_common_password = True
+c.NativeAuthenticator.minimum_password_length = 10
+c.NativeAuthenticator.allowed_failed_logins = 3
+c.NativeAuthenticator.seconds_before_next_try = 60
+
+c.NativeAuthenticator.allow_2fa = True                                                  
+c.NativeAuthenticator.require_2fa = True
+
+# reCaptcha? https://native-authenticator.readthedocs.io/en/latest/options.html#use-recaptcha-to-prevent-scripted-signup-attacks
+
+sso_token = get_run_secret('sso_token').strip()
+c.NativeAuthenticator.secret_key = sso_token.encode('utf-8').hex()[0:10]
+
+c.NativeAuthenticator.ask_email_on_signup = True
+c.NativeAuthenticator.allow_self_approval_for = '{{ portal.allowed_auto_approved_emails }}'
+c.NativeAuthenticator.self_approval_email = (
+   "{{ portal.stmp_verified_email }}", 
+   "Welcome to the OpenScienceLab Portal", 
+   "You have signed up for access to OSL. To complete the process, please click here: {{ portal.portal_domain }}/portal/hub/{approval_url}"
+   )
+
+c.NativeAuthenticator.enable_forget_password = True
+c.NativeAuthenticator.password_reset_email = (
+   "{{ portal.stmp_verified_email }}", 
+   "Change Password in the OpenScienceLab Portal", 
+   "You have requested a change of your OSL password for username '{username}'. To complete the process, please click here: {{ portal.portal_domain }}/portal/hub/{reset_url}"
+   )
+
+c.NativeAuthenticator.enable_reset_mfa = True
+c.NativeAuthenticator.reset_mfa_email = (
+   "{{ portal.stmp_verified_email }}", 
+   "Reset MFA Configuration in the OpenScienceLab Portal", 
+   "You have requested a reset of your OSL MFA configuration for username '{username}'. To complete the process, please click here: {{ portal.portal_domain }}/portal/hub/{reset_url}"
+   )
+
+c.NativeAuthenticator.enable_cc_admin_email = True
+c.NativeAuthenticator.cc_admin_email = (
+   "{{ portal.stmp_verified_email }}", 
+   "User Signup for OpenScienceLab Portal", 
+   "User <i>{username}</i> with email <i>{useremail}</i> has just completed the process of signing up for {{ portal.portal_domain }}"
+   )
+
+c.NativeAuthenticator.enable_change_confirmation_email = True
+c.NativeAuthenticator.change_confirmation_email = (
+   "{{ portal.stmp_verified_email }}",
+   "Account updated in the OpenScienceLab Portal",
+   "You have successfully updated the account with username <i>{username}</i> within {{ portal.portal_domain }}"
+   )
+
+######
+# odds and ends
+######
+
+c.Authenticator.admin_users = {'{{ portal.admin_user }}'}
+
+#c.JupyterHub.prefix_url = '/'
+
+c.JupyterHub.redirect_to_server = False
+c.JupyterHub.default_url = '/portal/hub/home'
+c.JupyterHub.bind_url = 'http://127.0.0.1:8000/portal/'
+c.JupyterHub.hub_bind_url = 'http://127.0.0.1:8081'
+c.ConfigurableHTTPProxy.api_url = 'http://127.0.0.1:8001'
+
+c.JupyterHub.services = [
+    {
+        "name": "portal-user-ro-service",
+        "api_token": get_jh_secret('portal-user-ro-token'),
+    },
+    {
+        "name": "portal-user-w-service",
+        "api_token": get_jh_secret('portal-user-w-token'),
+    }
+]
+
+c.JupyterHub.load_roles = [
+    {
+        "name": "portal-user-ro-service-role",
+        "scopes": [ 
+            'read:roles:users',
+            'read:users:groups',
+            'read:users:name'
+        ],
+        "services": [
+            "portal-user-ro-service",
+        ],
+    },
+    {
+        "name": "portal-user-w-service-role",
+        "scopes": [ 
+            'groups'
+        ],
+        "services": [
+            "portal-user-w-service",
+        ],
+    }
+]
+
+# https://jupyterhub.readthedocs.io/en/stable/api/app.html#jupyterhub.app.JupyterHub.load_groups
+c.JupyterHub.load_groups = {
+{%- for lab in labs %}
+    '{{ lab.short_name }}': [],
+{%- endfor %}
+}

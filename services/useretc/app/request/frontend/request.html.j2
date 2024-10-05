@@ -1,0 +1,105 @@
+<html>
+<head>
+    <link rel="stylesheet" 
+        href="https://cdn.jsdelivr.net/npm/purecss@2.2.0/build/pure-min.css" 
+        integrity="sha384-7UE2/aLxcikvluV1XGghN2k6i+LoAwMjrZb4oVT9gGPPcLd2sjqAtgIinHb11RJz" 
+        crossorigin="anonymous">
+    <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
+    <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css">
+
+    <style>
+        .button-success {
+            background-color: lightgreen;
+        }
+
+        .margin-left-30 {
+            margin-left: 30px;
+        }
+
+        .margin-left-10 {
+            margin-left: 10px;
+        }
+
+        .margin-top-10 {
+            margin-top: 10px;
+        }
+
+        .margin-top-30 {
+            margin-top: 30px;
+        }
+
+        #profile-table tr {
+            padding: 1em;
+        }
+
+        #profile-table th {
+            padding: 5px;
+            text-align: left;
+        }
+
+        .font-weight-normal {
+            font-weight: normal;
+        }
+
+    </style>
+</head>
+<body class="margin-left-30 margin-top-30">
+    <div>
+        <h1>Request Access to a Lab</h1>
+
+        <button onclick="location.href='/portal/hub/home'" class="pure-buttonn pure-button-primaryy" type="button">Go back to Portal Home</button>
+
+        <section>
+            <h3> Hello <i>{{ user_data.username }}</i> </h3>
+
+            <p>You are requesting access to lab '{{ user_data.lab_short_name }}'. Please fill out the information below.</p>
+        </section>
+
+        <section>
+            <h2>Profile Info</h2>
+            <div class="container margin-top-10 ">
+                <p>
+                    If the following is not correct, please update your <a href="/user/profile/show/{{ user_data.username }}?previous={{ user_data.previous }}">profile page</a> before submitting.
+                </p>
+
+                <table id="profile-table">
+                    <tbody>
+                        {% for key, value in user_data.profile.items() | sort  -%}
+                        <tr>
+                            <th class="font-weight-normal">{{ key }}</th>
+                            <th>{{ value }}</th>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>    
+            </div>       
+        </section>
+
+        <section>
+            <h2>Reason For Request</h2>
+            <div class="margin-top-30">
+                <form class="pure-form" method="post">
+                    <textarea 
+                        id="request-reason" 
+                        name="request-reason"
+                        rows="10"
+                        cols="100"
+                        placeholder="Please give reasons for requesting access"
+                        required>
+                    </textarea>
+                    <div class="margin-top-30">
+                        <p>Upon submission, you will receive a confirmation email. If approved for access, an OSL Admin will email you when access is granted.</p>
+                        <button class="pure-button pure-button-primary" type="submit">Submit Your Request</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </div>
+
+    <script text="javascript">
+        // On page load, make sure the textarea is totally clear
+        document.getElementById('request-reason').textContent = ""
+    </script>
+
+</body>
+</html>

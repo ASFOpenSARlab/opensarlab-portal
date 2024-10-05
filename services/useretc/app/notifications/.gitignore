@@ -1,0 +1,5 @@
+*
+!ical.yaml.j2
+!.gitignore
+!__init__.py
+!main.py

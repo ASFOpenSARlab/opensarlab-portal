@@ -1,0 +1,10 @@
+{% extends "templates/page.html" %}
+
+{% block nav_bar_left_items %}
+    {{ super() }}
+    <li><a href="{{base_url}}change-password">Change Password</a></li>
+    <li><a href="{{base_url}}setup-mfa">Configure New MFA Device</a></li>
+    {% if user.admin %}
+        <li><a href="{{base_url}}authorize">Authorize Users</a></li>
+    {% endif %}
+{% endblock %}

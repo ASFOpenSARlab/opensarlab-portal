@@ -1,0 +1,28 @@
+# pack-refs with: peeled fully-peeled sorted 
+1892c0f5275e895c97605a2b6ea2717799362c15 refs/remotes/origin/admin-signup-token
+b3930f4234f209938b3d1523f689a990b7dd7f25 refs/remotes/origin/handler-docstrings
+08aa852e3123d66477601094818134c229a97fa1 refs/remotes/origin/main
+b19b16203ea199d11137bb02ce2ea3fd1efdf3fc refs/remotes/origin/pre-commit-ci-update-config
+28da851a6b78660fb8ea2a0438dd453b4dc905c2 refs/remotes/origin/pwned-passwords
+1dd8beb2c92396053dc728635d4938ab99b78597 refs/tags/0.0.1
+^504d58b2be0e01d4d9ab02d31fb13a3417d10f56
+01aa34992d2bd46219f7dc7ff560a6000726c7ff refs/tags/0.0.2
+^b00a5e4e97dda3a492cf46a09d90bff71a2b7bd3
+253f7fc587865ccebc09f0194e4c4867923eba10 refs/tags/0.0.3
+^4e55418afa0788c5911bea6e3400a45e300a24e5
+6268fb5564efca67a25cec0452b078b573eecfd7 refs/tags/0.0.4
+^bb607303b910ccd142ccbcbd2678425e7ed7a3c3
+28ebcb3b4dd286cc22156ad5ccebdcf041e359d8 refs/tags/0.0.5
+^c53ae768cc4b8f825c92a02c5c317c1969c569fb
+fbd403f34dde9e4b9ad97941b9fa3f77e650e455 refs/tags/0.0.6
+^9fd86f8d57f86dff8cd0bda13b9b2416f0fc2591
+d2cee2fbb0ea596ed3c793278b152bf3c9870ba8 refs/tags/0.0.7
+^a1a4d587a20abaa0a7e44fb1de8debd4624ee017
+8057936c4adeda4eb1f707a98c455abdd629ec31 refs/tags/1.0.0
+c29ba909168d6a8cda1a42a1f639bf1315f76e7d refs/tags/1.0.1
+c1dc160e8cc638bf17837601b5067a9a014b5d1a refs/tags/1.0.2
+5fe8b52ce0c6f014dec3ee47c9a904a00ecc8b83 refs/tags/1.0.3
+b6a1c3c151d3bd1edafe9f66ec20d4104044c61f refs/tags/1.0.4
+5a09d34a8226ff8454119618607e88c9ed604e06 refs/tags/1.0.5
+00ac7d67380ae6d12dc1b7b312d0d1bfaadc5332 refs/tags/1.1.0
+^a69033ef9c464e6901e6b7ac7dacff6150e86849

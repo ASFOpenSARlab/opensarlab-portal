@@ -1,0 +1,179 @@
+{% extends "page.html" %}
+{% block main %}
+
+<head>
+    <title>Set Up MFA</title>
+    <style>
+        fieldset {
+            border: 1px solid silver;
+        }
+
+        fieldset legend {
+            width: auto;
+            margin-bottom: 0px;
+            margin-left: 10px;
+            border: 0px;
+            padding: 10px;
+            font-size: 30px;
+        }
+
+        fieldset div {
+            margin: 20px;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0px;
+        }
+
+        .body_container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: auto;
+            padding: 10px;
+            max-width: 80%;
+            width: 100%;
+        }
+
+        .body_element {
+            flex: 1;
+            align-items: center;
+            padding: 20px;
+            text-align: left;
+        }
+    </style>
+    <script type="text/javascript">
+        document.addEventListener("DOMContentLoaded", function () {
+            document.getElementById("validate_button").addEventListener("click", function () {
+                console.log("button pushed")
+                var input1 = document.getElementById('input1').value;
+                var input2 = document.getElementById('input2').value;
+
+                var secret = "{{ two_factor_auth_value }}";
+                var update = false;
+
+                var data = {
+                    input1: input1,
+                    input2: input2,
+                    secret: secret,
+                };
+
+                fetch('/portal/hub/validate-totp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        var outputElement = document.getElementById('output');
+                        if (data.valid) {
+                            outputElement.textContent = "Valid TOTP codes.";
+                            update = true;
+                        } else {
+                            outputElement.textContent = "Invalid TOTP codes.";
+                        }
+
+                        var update_data = {
+                            update: update,
+                            secret: secret,
+                        }
+
+                        fetch('/portal/hub/setup-mfa', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(update_data),
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.update_successful) {
+                                    outputElement.textContent =
+                                        outputElement.textContent.concat("\n", "Account update successful. You may return to the homepage.")
+                                } else {
+                                    outputElement.textContent.concat("\n", "Account update was unsuccessful. Please refresh the page and try again.")
+                                }
+                            });
+                    });
+            });
+        });
+    </script>
+</head>
+</head>
+
+<body>
+    <div class="body_container">
+        <div class="body_element">
+            <fieldset>
+                <div>
+                    <h3>MFA Device Configured:</h3>
+                    <ul>
+                        {% for method, is_configured in authentication_methods.items() %}
+                        <li>{{ "✅" if is_configured else "❌" }} {{ method }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </fieldset>
+
+            <h2>Configure MFA Device for {{ username }}</h2>
+            <p>
+                Multi-factor authentication (MFA) is required in order to access OpenScienceLab
+                resources.<br>
+                To add a new MFA device or change your current MFA device, please go
+                through the below workflow on your new device.<br>
+                Note that only one device can be active at a time, so when a new
+                device is added, the old token needs to be manually deleted.<br>
+                For a detailed walkthrough, see the MFA page of the
+                <a href="https://opensarlab-docs.asf.alaska.edu/user-guides/mfa/">OpenScienceLab documentation</a>
+            </p>
+
+            <fieldset>
+                <legend>Step 1</legend>
+                <div>
+                    Using your smartphone, download a TOTP-enabled authenticator app (like
+                    <a
+                        href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2&pli=1">Google
+                        Authenticator</a>).
+                </div>
+            </fieldset>
+
+            <br>
+
+            <fieldset>
+                <legend>Step 2</legend>
+                <div>
+                    Scan the QR code below or copy the OTP secret into the app.
+                    <p>
+                        <img src="data:image/png;base64, {{two_factor_auth_qr_code | safe}}" height="225" width="225"
+                            alt="{{two_factor_auth_value}}"><br>
+                        OTP Secret: {{two_factor_auth_value}}
+                    </p>
+                </div>
+            </fieldset>
+
+            <br>
+
+            <fieldset>
+                <legend>Step 3</legend>
+                <div>
+                    <p>
+                        Enter two consecutive codes from your authenticator app into the fields
+                        below:
+                    </p>
+
+                    <label for="input1">Code 1:</label>
+                    <input type="text" id="input1"><br>
+                    <label for="input2">Code 2:</label>
+                    <input type="text" id="input2"><br>
+                    <button type="button" id="validate_button" style="margin-top: 10px">Check MFA Codes</button>
+                    <p id="output"></p>
+                </div>
+            </fieldset>
+        </div>
+
+    </div>
+</body>
+{% endblock %}

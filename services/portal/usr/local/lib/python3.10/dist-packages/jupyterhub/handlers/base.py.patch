@@ -1,0 +1,27 @@
+diff --git a/jupyterhub/handlers/base.py b/jupyterhub/handlers/base.py
+index 6bc0ef29..bb31bffa 100644
+--- a/jupyterhub/handlers/base.py
++++ b/jupyterhub/handlers/base.py
+@@ -523,6 +523,12 @@ class BaseHandler(RequestHandler):
+                     self.log.debug("Deleted %s access tokens for %s", count, user.name)
+                     self.db.commit()
+ 
++        # Remove jwt cookie
++        self.clear_cookie('jupyterhub-portal-jwt', path='/')
++
++        # clear username cookie
++        self.clear_cookie('portal-username', path='/portal', **kwargs)
++
+         # clear hub cookie
+         self.clear_cookie(self.hub.cookie_name, path=self.hub.base_url, **kwargs)
+         # clear services cookie
+@@ -629,6 +635,9 @@ class BaseHandler(RequestHandler):
+         if not self.get_current_user_cookie():
+             self.set_hub_cookie(user)
+ 
++            # Set portal username cookie
++            self._set_cookie('portal-username', user.name, encrypted=False, path='/')
++
+     def authenticate(self, data):
+         return maybe_future(self.authenticator.get_authenticated_user(self, data))
+ 

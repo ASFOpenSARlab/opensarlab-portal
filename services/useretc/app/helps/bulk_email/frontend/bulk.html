@@ -1,0 +1,112 @@
+
+<html>
+<head>
+    <link rel="stylesheet" 
+        href="https://cdn.jsdelivr.net/npm/purecss@2.2.0/build/pure-min.css" 
+        integrity="sha384-7UE2/aLxcikvluV1XGghN2k6i+LoAwMjrZb4oVT9gGPPcLd2sjqAtgIinHb11RJz" 
+        crossorigin="anonymous">
+</head>
+<body>
+    <section>
+        <div style="margin-left: 50px; margin-top: 10px;">
+            <div>
+                <h1>Bulk Email Send</h1>
+                <p>
+                    Send bulk emails from the OSL admin.
+                </p>
+                <br/>
+
+                <div class="form-group">
+                    <p><i> 
+                        <b>TO:</b> A comma-delimited list of email addresses.
+                    </i></p>
+                    <textarea 
+                        id="bulk-email-to-address-textarea" 
+                        name="to-address"
+                        rows="3"
+                        cols="100"
+                        required>
+                    </textarea>
+                </div>
+                <br/>
+                <div class="form-group">
+                    <p><i> 
+                        <b>BCC:</b> A comma-delimited list of email addresses.
+                    </i></p>
+                    <textarea 
+                        id="bulk-email-bcc-address-textarea" 
+                        name="bcc-address"
+                        rows="3"
+                        cols="100"
+                        required>
+                    </textarea>
+                </div>
+                <br/>
+                <div class="form-group">
+                    <p><i> 
+                        Email Subject
+                    </i></p>
+                    <textarea 
+                        id="bulk-email-subject-textarea" 
+                        name="subject"
+                        rows="1"
+                        cols="100"
+                        required>
+                    </textarea>
+                </div>
+                <br/>
+                <div class="form-group">
+                    <p><i> 
+                        Main Message (HTML)
+                    </i></p>
+                    <textarea 
+                        id="bulk-email-html-body-textarea" 
+                        name="main-message"
+                        rows="15"
+                        cols="100"
+                        required>
+                    </textarea>
+                </div>
+                <br/>
+                <button id="bulk-email-submit" type="submit" class="pure-button pure-button-primary">Send</button>
+            </div>
+            <div>
+                <p>
+                    <span id="bulk-email-response" style="color: green"></span>
+                </p>
+                <p>
+                    <span id="bulk-email-error" style="color: red"></span>
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <script>
+
+        function send_data() {
+            const data = { 
+                toAddress: document.getElementById('bulk-email-to-address-textarea').value,
+                bccAddress: document.getElementById('bulk-email-bcc-address-textarea').value,
+                subject: document.getElementById('bulk-email-subject-textarea').value,
+                htmlBody: document.getElementById('bulk-email-html-body-textarea').value,
+            };
+
+            fetch('/user/helps/bulk/email/send', {
+                method: 'POST',
+                body: JSON.stringify(data),
+            })
+            .then((response) => response.text())
+            .then((response) => {
+                console.log('Success:', response);
+                document.getElementById('bulk-email-response').textContent = response;
+            })
+            .catch((error) => {
+                document.getElementById('bulk-email-error').textContent = response;
+                console.error('Error:', error);
+            });
+        }
+
+        document.getElementById('bulk-email-submit').addEventListener("click", send_data);
+    </script>
+</body>
+</html>

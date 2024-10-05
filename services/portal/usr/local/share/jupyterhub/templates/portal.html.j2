@@ -1,0 +1,154 @@
+{% extends "page.html" %}
+
+{% block nav_bar_left_items %}
+    {{ super() }}
+
+    {% if 'admin-ui' in parsed_scopes or 'admin:users' in parsed_scopes %}
+    <li><a href="/user/access/admin">Access</a></li>
+    {% endif %}
+
+{% endblock %}
+
+{% block main %}
+
+    <div class="container" style="margin-top: 10px;">
+    <div class="row">
+        <h2 style="border-bottom: 1px solid black; margin-bottom: 25px; padding-bottom: 10px;"> Welcome To OpenScienceLab </h2>
+        
+        {% if is_global_lab_country_status_limited -%}
+            <div class="alert alert-warning show">
+                <strong>Warning!</strong>
+                Due to your location (country code '{{ country_code }}'), you may have limited access to some labs.
+            </div>
+        {% endif -%}
+
+        {% if not is_mfa_enabled %}
+            <div class="alert alert-warning show">
+                <h3><strong>ATTENTION!</strong></h3>
+                It appears you do not have Multi-Factor Authentication (MFA) enabled.<br>
+                Until you enable MFA, you will not be able to access any labs or
+                OpenScienceLab resources.<br>
+                See the "Configure New MFA Device" tab in the Navigation Bar at the top of the
+                page to enable MFA and gain access to the full OpenScienceLab
+                environment.<br>
+            </div>
+        {% endif -%}
+
+        <p><i> 
+
+            For an overview of best practices and guidance for resolving some issues,
+                see the <a href="https://opensarlab-docs.asf.alaska.edu/">OpenScienceLab documentation</a>.
+            <br/>
+            If you need assistance, don't hesitate to <a href="mailto:uaf-jupyterhub-asf+help@alaska.edu">email the OpenScienceLab team</a>.
+            Please include your username, which lab deployment and profile was used, a detailed description, 
+            and any other information that you feel is needed.
+            
+        </i></p>
+
+    </div>
+    </div>
+
+    {% for mylab in mylabs -%}
+
+    <div class="container" style="margin-top: 10px;">
+    <div class="row">
+        <section>
+        <div id="lab-choices">
+        <link href="/portal/hub/static/css/portal.css" rel="stylesheet" />
+
+        <fieldset>
+            <legend> {{ mylab.friendly_name }} </legend>
+
+            {% if mylab.can_user_access_lab is defined and not mylab.can_user_access_lab -%}
+                <p class="alert alert-warning show">
+                    You do not have access to this lab. <a href="/user/request/lab/{{ mylab.short_lab_name }}">Request access here</a>
+                    <br/>
+                </p>
+            {% elif mylab.is_lab_deployment_healthy is defined and not mylab.is_lab_deployment_healthy -%}
+                <p class="alert alert-danger show">
+                    The lab url is either unhealthy or no longer exists. Please contact the <a href="mailto:uaf-jupyterhub-asf+help@alaska.edu">OpenScienceLab Team</a>.
+                    <br/>
+                </p>
+            {% endif %}
+
+            <div class="lab-logo">
+                <span>
+                    {% if mylab.logo is defined and mylab.logo != None -%}
+                    <img class="mylab-logo-img" src="/portal/hub/static/images/{{ mylab.logo }}" alt="logo for {{ mylab.friendly_name }}"/>
+                    {% endif %}
+                </span>
+            </div>
+            <div>
+                <div class="lab-description">
+                    <span>
+                        {{ mylab.description | safe }}
+                    </span>
+                </div>
+
+                <div class="lab-btns">
+                    <a id="start-{{ mylab.short_lab_name }}" 
+                        role="button" 
+                        class="btn btn-lg btn-primary go-to-lab-btn"
+                        {% if mylab.can_user_access_lab is defined and not mylab.can_user_access_lab -%}
+                        href="javascript:void(0)"
+                        title="You do not have access to the lab"
+                        disabled
+                        {% elif mylab.is_lab_deployment_healthy is defined and not mylab.is_lab_deployment_healthy -%}
+                        href="javascript:void(0)"
+                        title="The lab url is either unhealthy or the lab no longer exists"
+                        disabled
+                        {% else -%}
+                        href="/lab/{{ mylab.short_lab_name }}/hub/login"
+                        title="Click to go to the lab {{ mylab.short_lab_name }}"
+                        {% endif %}
+                        >
+                        Go to lab</i>
+                    </a>
+                    {% if mylab.about_page_url is defined and mylab.about_page_url != None -%}
+                    <a id="about-{{ mylab.short_lab_name }}" 
+                        role="button" 
+                        class="btn btn-lg btn-primary go-to-about-btn" 
+                        target="_blank"
+                        href="{{ mylab.about_page_url }}"
+                        >
+                        {{ mylab.about_page_button_label }}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+        </fieldset>
+
+        </div>
+        </section>
+    </div>
+    </div>
+    <br>
+    <br> 
+    {% endfor -%}
+
+    {% if is_mfa_enabled and not mylabs -%}
+    <div class="container" style="margin-top: 30px;">
+        <div class="row">
+            <div class="alert alert-info show">There are no labs assigned. </div>
+        </div>
+    </div>
+    {% endif -%}
+
+{% endblock main %}
+
+{% block script %}
+{{ super() }}
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.1.4/toastr.min.css" rel="stylesheet"/>
+<style> #toast-container > div { opacity: 1; } </style>
+<script src="/portal/hub/static/js/includes/notifications.js" type="text/javascript"></script>
+<script>
+    notifications('portal', 'home')
+</script>
+
+<script type="text/javascript">
+    let username = "{{ username }}";
+    require(["portal"]);
+</script>
+{% endblock %}

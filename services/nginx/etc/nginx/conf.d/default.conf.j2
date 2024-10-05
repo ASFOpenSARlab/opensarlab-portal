@@ -1,0 +1,256 @@
+
+# Since all traffic goes through AWS ELB, we will trust all traffic and make the forwarded ip the real ip 
+real_ip_header X-Forwarded-For;
+set_real_ip_from 0.0.0.0/0;
+
+geoip2 /etc/geoip/GeoLite2-Country.mmdb {
+    $geoip2_data_country_iso_code_raw country iso_code;
+}
+
+# If there is no country code detected (like for localhost), default to country code 'ZZ' Unknown
+map $geoip2_data_country_iso_code_raw $geoip2_data_country_iso_code {
+    '' ZZ;
+    default $geoip2_data_country_iso_code_raw;
+}
+
+map $geoip2_data_country_iso_code $ip_country_status {
+    default unrestricted;
+
+    {% if ip_country_status is defined and ip_country_status.unrestricted is defined -%}
+    {% for country in ip_country_status.unrestricted -%}
+    {{ country }} unrestricted;
+    {% endfor -%}
+    {% endif -%}
+
+    {% if ip_country_status is defined and ip_country_status.limited is defined -%}
+    {% for country in ip_country_status.limited -%}
+    {{ country }} limited;
+    {% endfor -%}
+    {% endif -%}
+
+    {% if ip_country_status is defined and ip_country_status.prohibited is defined -%}
+    {% for country in ip_country_status.prohibited -%}
+    {{ country }} prohibited;
+    {% endfor -%}
+    {% endif -%}
+}
+
+# top-level http config for websocket headers
+# If Upgrade is defined, Connection = upgrade
+# If Upgrade is empty, Connection = close
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+map $remote_addr $block_ip {
+    {% if blocked_ips is defined -%}
+    {% for ip in blocked_ips -%}
+    {{ ip }}  1;
+    {% endfor -%}
+    {% endif %}
+
+    default               0;
+}
+
+# Logs
+log_format a_log_format
+    '[$time_local] '
+    '$remote_addr - $remote_user '
+    '$status '
+    '"$request" '
+    '$body_bytes_sent '
+    '"$http_referer" '
+    '"$http_user_agent" '
+    '---- '
+    '$request_length '
+    '$request_time '
+    '$upstream_addr '
+    '$upstream_status '
+    '$upstream_response_time '
+    '$upstream_connect_time '
+    '$upstream_header_time '
+    '$scheme '
+    '$host '
+    '$http_host '
+    '$geoip2_data_country_iso_code '
+    '$ip_country_status ';
+
+server {
+    listen 443;
+    server_name {{ portal.portal_domain | replace('https://', '') | replace('http://', '') }};
+
+    root /usr/share/nginx/html/errors;
+
+    # SSL termination should have been handled by a load balancer. 
+    # If we get this far than something is wrong.
+    try_files /418.html =401;
+}
+
+server {
+    listen 80 default_server;
+    server_name {{ portal.portal_domain | replace('https://', '') | replace('http://', '') }};
+
+    root /usr/share/nginx/html;
+    error_page 404 /errors/404.html;
+    error_page 500 /errors/500.html;
+    error_page 401 /errors/401.html;
+    error_page 403 /errors/403.html;
+
+    access_log /var/log/nginx/access.log a_log_format;
+
+    # Deny everyone outside a CIDR range. Localhost is always allowed.
+    {% if portal['access_cidrs'] is defined -%}
+    {% for cidr in portal['access_cidrs'].split(',') -%}
+    allow {{ cidr | trim(' ')}};
+    {% endfor -%}
+    {% endif %}
+    allow 127.0.0.1;
+    deny all;
+
+    if ($ip_country_status = prohibited) { return 403; }
+
+    if ($block_ip) { return 403; }
+
+    add_header Cache-Control no-cache;
+
+    resolver {{ portal.dns_nameserver }} ipv6=off;
+
+    {% if portal['nginx-options'] is defined -%}
+    {% for opts in portal['nginx-options'] -%}
+    {{ opts | trim(';') }};
+    {% endfor -%}
+    {% endif %}
+
+    ##### Default proxy settings 
+    proxy_pass_request_headers  on;
+    proxy_intercept_errors      on;
+    proxy_set_header            X-Real-IP                   $remote_addr;
+    proxy_set_header            Host                        $http_host;
+    proxy_set_header            X-Forwarded-For             $proxy_add_x_forwarded_for;
+    proxy_set_header            X-GeoIP2-Iso-Code           $geoip2_data_country_iso_code;
+    proxy_set_header            X-Portal-IP-Country-Status  $ip_country_status;
+    proxy_buffering             off;
+    proxy_buffer_size           16k;  # 16k of buffers from pool used for headers. Needs to be big enough for the largest cookies
+    proxy_buffers               64 4k;  # Buffer pool  (64)
+    proxy_busy_buffers_size     24k; # essentially, proxy_buffer_size + 2 small buffers of 4k
+
+    client_max_body_size        0;
+    #client_body_buffer_size    1M;
+
+    # websocket headers
+    proxy_http_version          1.1;
+    proxy_set_header            Upgrade         $http_upgrade;
+    proxy_set_header            Connection      upgrade;
+    proxy_set_header            X-Scheme        https;
+
+    ## These are added for debugging. However, such browser headers shouldn't be in production
+    add_header X-GeoIP2-Iso-Code $geoip2_data_country_iso_code;
+    add_header X-Portal-IP-Country-Status $ip_country_status;
+    add_header X-Real-IP $remote_addr;
+
+    #######################################
+    ##### Robots.txt
+    #######################################
+    location = /robots.txt {
+        add_header Content-Type text/plain;
+        return 200 "User-agent: *\nDisallow: /\n";
+    }
+
+    #######################################
+    ##### Main portal page
+    #######################################
+    location = / {
+        return 303 /portal/;
+    }
+    location ~* ^/portal(.*)$ {
+        set $lab_address http://127.0.0.1:8000/portal;
+        proxy_pass $lab_address$1$is_args$args;
+    }
+
+    #######################################
+    ##### Private pages
+    #######################################
+    # Items to be served by nginx but are generally outside public consumption
+    location ~* ^/private/(.*)$ {
+        root /usr/share/nginx/private;
+        try_files /$1 /$1/index.html index.html =404;
+    }
+
+    #######################################
+    ##### Calculator
+    #######################################
+    location ~* ^/calculator(.*)$ {
+        #proxy_pass http://$1$is_args$args;
+        add_header Content-Type text/plain;
+        return 200 "Future home of the Calculator!!";
+    }
+
+    #######################################
+    ##### User pages
+    #######################################
+    location ~* ^/user/(.*)$ {
+        proxy_pass http://127.0.0.1:8887/user/$1$is_args$args;
+    }
+
+    #######################################
+    ##### Lab pages
+    #######################################
+    {% for lab in labs -%}
+
+    ##### Lab for {{ lab['short_name'] }}
+    location ~* ^/lab/{{ lab['short_name'] }}(.*)$ {
+        set $lab_address {{ lab['deployment_url']  | trim(';') | trim('/') }}/lab/{{ lab['short_name'] }};
+        proxy_pass $lab_address$1$is_args$args;
+
+        {% if lab['nginx-options'] is defined -%}
+        {% for opts in lab['nginx-options'] -%}
+        {{ opts | trim(';') }};
+        {% endfor -%}
+        {% endif %}
+    }
+
+    ##### Dashboard for {{ lab['short_name'] }}
+    location = /dashboards/{{ lab['short_name'] }} {
+        add_header Content-Type text/html;
+        return 200 "<html><body><h3>The future home for {{ lab['short_name'] }} dashboards</h3></body></html>";
+    }
+
+    {% if lab['about_page_url'] is defined and lab['about_page_url'] == '/about/'+lab['short_name'] %}
+    ##### About page for {{ lab['short_name'] }}
+    location ~* ^/about/{{ lab['short_name'] }}(.*)$ {
+        root /usr/share/nginx/html/about/{{ lab['short_name'] }};
+        try_files $1 /index.html =404;
+    }
+    {% elif lab['about_page_url'] is defined %}
+    ##### Redirect to external about page for {{ lab['short_name'] }}
+    location /about/{{ lab['short_name'] }} {
+        return 307 {{ lab['about_page_url'] }};
+    }
+    {% endif %}
+
+    {% endfor -%}
+}
+
+{% if redirects is defined %}
+{% for redirect in redirects -%}
+server {
+    listen 80;
+    server_name {{ redirect['domain'] | replace('https://', '') | replace('http://', '') }};
+
+    access_log /var/log/nginx/access.log a_log_format;
+    return 301 {{ portal.portal_domain }}{{ redirect['target_path'] }};
+}
+server {
+    listen 443;
+    server_name {{ redirect['domain'] | replace('https://', '') | replace('http://', '') }};
+
+    root /usr/share/nginx/html/errors;
+
+    # SSL termination should have been handled by a load balancer. 
+    # If we get this far than something is wrong.
+    try_files /418.html =401;
+}
+
+{% endfor %}
+{% endif -%}
