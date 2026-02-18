@@ -1,4 +1,8 @@
 
+## ⚠️ This repo is inactive and deprectated. See [opensciencelab-portal-v2](https://github.com/ASFOpenSARlab/opensciencelab-portal-v2/) ⚠️
+
+<Br><Br><Br><Br><Br><Br><Br><Br><Br><Br><Br><Br>
+
 ** This code repo is a santized copy of the production OpenSARLab. It is not guarenteed to be current. **
 
 # Enable Under Construction page
